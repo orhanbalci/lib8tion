@@ -6,9 +6,9 @@
 //! `lib8tion.h`. C names are `camelCase` (`ease8InOutCubic`); this port uses
 //! `snake_case` (`ease8_in_out_cubic`) per Rust convention, but is otherwise a
 //! line-for-line translation — `scale8_LEAVING_R1_DIRTY` is FastLED's
-//! AVR-asm-register-cleanup hint for [`scale8`](crate::scale8::scale8) and is
-//! ported as a plain call to it (see also the note on `nscale8x3_constexpr`
-//! in [`scale8`](crate::scale8) — these AVR-only naming quirks have no
+//! AVR-asm-register-cleanup hint for [`scale8`] and is ported as a plain call
+//! to it (see also the note on `nscale8x3_constexpr` in the
+//! [`scale8`](mod@crate::scale8) module — these AVR-only naming quirks have no
 //! portable semantic meaning).
 //!
 //! See <https://easings.net> for a visual reference of these curve shapes.

@@ -2,6 +2,7 @@
 name = "lib8tion"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 authors = ["Orhan Balci <orhanbalci@gmail.com>"]
 description = "Rust port of FastLED lib8tion — fast 8-bit math primitives for embedded LED programming"
 license = "MIT"

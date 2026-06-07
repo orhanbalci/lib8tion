@@ -83,6 +83,9 @@ actual C reference code on every test run:
 cargo test
 ```
 
+(`fastled-ref` is a path-only dev-dependency and isn't published — `cargo test`
+needs a git clone of this repo, not the crates.io source tarball.)
+
 ## `no_std` / embedded
 
 The crate has zero dependencies and builds for bare-metal targets:

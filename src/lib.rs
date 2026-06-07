@@ -78,8 +78,8 @@ macro_rules! fixed_point_numerator {
 
 fixed_point_numerator! {
     /// 8-bit fixed-point fraction in the range `0/256 ..= 255/256`, stored as
-    /// a numerator over 256. The scale-factor type for [`scale8`](scale8::scale8),
-    /// [`lerp8by8`](lerp::lerp8by8) and friends — build one with `Fract8(n)`/
+    /// a numerator over 256. The scale-factor type for [`scale8()`],
+    /// [`lerp8by8`] and friends — build one with `Fract8(n)`/
     /// [`Fract8::new`], or `n.into()`.
     Fract8(u8)
 }
@@ -87,8 +87,7 @@ fixed_point_numerator! {
 fixed_point_numerator! {
     /// 16-bit fixed-point fraction in the range `0/65536 ..= 65535/65536`,
     /// stored as a numerator over 65536. The scale-factor type for
-    /// [`scale16`](scale8::scale16), [`lerp16by16`](lerp::lerp16by16) and
-    /// friends.
+    /// [`scale16`], [`lerp16by16`] and friends.
     Fract16(u16)
 }
 
@@ -101,7 +100,6 @@ fixed_point_numerator! {
 fixed_point_numerator! {
     /// 8.8 fixed-point accumulator: high byte is the integer part, low byte
     /// is the fractional part — e.g. a BPM of `120.5` is `Accum88((120 << 8) | 128)`.
-    /// The format [`beat88`](beat::beat88)/[`beatsin88`](beat::beatsin88)
-    /// expect their tempo in.
+    /// The format [`beat88`]/[`beatsin88`] expect their tempo in.
     Accum88(u16)
 }

@@ -1,7 +1,7 @@
 //! Fast 8-/16-/32-bit scaling, video-safe scaling, and gamma-ish dimming /
 //! brightening curves.
 //!
-//! "Scaling" a byte `i` by a [`Fract8`](crate::Fract8) `scale` computes
+//! "Scaling" a byte `i` by a [`Fract8`] `scale` computes
 //! `i * (scale + 1) / 256` — i.e. `scale` is treated as a fixed-point
 //! fraction in `0/256 ..= 256/256`, so `scale8(x, 255) == x` (full-range
 //! round-trips exactly). This matches FastLED's default
