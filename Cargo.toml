@@ -2,5 +2,16 @@
 name = "lib8tion"
 version = "0.1.0"
 edition = "2024"
+authors = ["Orhan Balci <orhanbalci@gmail.com>"]
+description = "Rust port of FastLED lib8tion — fast 8-bit math primitives for embedded LED programming"
+license = "MIT"
+repository = "https://github.com/orhanbalci/lib8tion"
+keywords = ["led", "embedded", "no-std", "math"]
+categories = ["embedded", "no-std", "mathematics"]
+readme = "README.md"
 
 [dependencies]
+
+[dev-dependencies]
+fastled-ref = { path = "fastled-ref" }
+proptest = "1.11.0"
