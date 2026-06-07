@@ -14,10 +14,15 @@
 //! and adds or subtracts it from `a` accordingly.
 
 use crate::scale8::{scale8, scale16, scale16by8};
+use crate::{Fract8, Fract16};
 
 /// Linearly interpolate between two unsigned bytes, with an 8-bit fraction.
+///
+/// `frac` is a [`Fract8`] — the same fixed-point-fraction type [`scale8`]
+/// takes — so `frac == Fract8(0)` returns `a` and `frac == Fract8(255)`
+/// returns (very nearly) `b`.
 #[inline]
-pub const fn lerp8by8(a: u8, b: u8, frac: u8) -> u8 {
+pub const fn lerp8by8(a: u8, b: u8, frac: Fract8) -> u8 {
     if b > a {
         let delta = b - a;
         let scaled = scale8(delta, frac);
@@ -30,9 +35,9 @@ pub const fn lerp8by8(a: u8, b: u8, frac: u8) -> u8 {
 }
 
 /// Linearly interpolate between two unsigned 16-bit values, with a 16-bit
-/// fraction.
+/// ([`Fract16`]) fraction.
 #[inline]
-pub const fn lerp16by16(a: u16, b: u16, frac: u16) -> u16 {
+pub const fn lerp16by16(a: u16, b: u16, frac: Fract16) -> u16 {
     if b > a {
         let delta = b - a;
         let scaled = scale16(delta, frac);
@@ -45,9 +50,9 @@ pub const fn lerp16by16(a: u16, b: u16, frac: u16) -> u16 {
 }
 
 /// Linearly interpolate between two unsigned 16-bit values, with an 8-bit
-/// fraction.
+/// ([`Fract8`]) fraction.
 #[inline]
-pub const fn lerp16by8(a: u16, b: u16, frac: u8) -> u16 {
+pub const fn lerp16by8(a: u16, b: u16, frac: Fract8) -> u16 {
     if b > a {
         let delta = b - a;
         let scaled = scale16by8(delta, frac);
@@ -60,14 +65,14 @@ pub const fn lerp16by8(a: u16, b: u16, frac: u8) -> u16 {
 }
 
 /// Linearly interpolate between two signed 15-bit values (held in `i16`),
-/// with an 8-bit fraction.
+/// with an 8-bit ([`Fract8`]) fraction.
 ///
 /// The intermediate `delta`/`scaled` values are computed in `i32` (matching
 /// C's `int`-promotion of the `i16` operands) and only truncated back to
 /// `i16` at the end — exactly mirroring FastLED's behavior, including its
 /// wrap-on-truncation for any out-of-range inputs.
 #[inline]
-pub const fn lerp15by8(a: i16, b: i16, frac: u8) -> i16 {
+pub const fn lerp15by8(a: i16, b: i16, frac: Fract8) -> i16 {
     if b > a {
         let delta = (b as i32 - a as i32) as u16;
         let scaled = scale16by8(delta, frac);
@@ -80,10 +85,10 @@ pub const fn lerp15by8(a: i16, b: i16, frac: u8) -> i16 {
 }
 
 /// Linearly interpolate between two signed 15-bit values (held in `i16`),
-/// with a 16-bit fraction. See [`lerp15by8`] for the intermediate-precision
-/// note.
+/// with a 16-bit ([`Fract16`]) fraction. See [`lerp15by8`] for the
+/// intermediate-precision note.
 #[inline]
-pub const fn lerp15by16(a: i16, b: i16, frac: u16) -> i16 {
+pub const fn lerp15by16(a: i16, b: i16, frac: Fract16) -> i16 {
     if b > a {
         let delta = (b as i32 - a as i32) as u16;
         let scaled = scale16(delta, frac);
@@ -109,7 +114,7 @@ pub const fn lerp15by16(a: i16, b: i16, frac: u16) -> i16 {
 #[inline]
 pub const fn map8(input: u8, range_start: u8, range_end: u8) -> u8 {
     let range_width = range_end.wrapping_sub(range_start);
-    let out = scale8(input, range_width);
+    let out = scale8(input, Fract8(range_width));
     out.wrapping_add(range_start)
 }
 
@@ -119,43 +124,46 @@ mod tests {
 
     #[test]
     fn lerp8by8_interpolates_between_endpoints() {
-        assert_eq!(lerp8by8(0, 255, 0), 0);
-        assert_eq!(lerp8by8(0, 255, 255), 255);
-        assert_eq!(lerp8by8(0, 255, 128), 128);
+        assert_eq!(lerp8by8(0, 255, Fract8(0)), 0);
+        assert_eq!(lerp8by8(0, 255, Fract8(255)), 255);
+        assert_eq!(lerp8by8(0, 255, Fract8(128)), 128);
         // Symmetric: interpolating from b to a by `frac` matches a to b by
         // `255 - frac` (within rounding).
-        assert_eq!(lerp8by8(10, 200, 64), lerp8by8(200, 10, 255 - 64));
+        assert_eq!(
+            lerp8by8(10, 200, Fract8(64)),
+            lerp8by8(200, 10, Fract8(255 - 64))
+        );
     }
 
     #[test]
     fn lerp16by16_interpolates_between_endpoints() {
-        assert_eq!(lerp16by16(0, 65535, 0), 0);
-        assert_eq!(lerp16by16(0, 65535, 65535), 65535);
-        assert_eq!(lerp16by16(1000, 100, 65535), 100);
+        assert_eq!(lerp16by16(0, 65535, Fract16(0)), 0);
+        assert_eq!(lerp16by16(0, 65535, Fract16(65535)), 65535);
+        assert_eq!(lerp16by16(1000, 100, Fract16(65535)), 100);
     }
 
     #[test]
     fn lerp16by8_interpolates_between_endpoints() {
-        assert_eq!(lerp16by8(0, 65535, 0), 0);
-        assert_eq!(lerp16by8(0, 65535, 255), 65535);
-        assert_eq!(lerp16by8(1000, 100, 255), 100);
+        assert_eq!(lerp16by8(0, 65535, Fract8(0)), 0);
+        assert_eq!(lerp16by8(0, 65535, Fract8(255)), 65535);
+        assert_eq!(lerp16by8(1000, 100, Fract8(255)), 100);
     }
 
     #[test]
     fn lerp15by8_handles_signed_endpoints() {
-        assert_eq!(lerp15by8(-1000, 1000, 0), -1000);
-        assert_eq!(lerp15by8(-1000, 1000, 255), 1000);
-        assert_eq!(lerp15by8(1000, -1000, 255), -1000);
+        assert_eq!(lerp15by8(-1000, 1000, Fract8(0)), -1000);
+        assert_eq!(lerp15by8(-1000, 1000, Fract8(255)), 1000);
+        assert_eq!(lerp15by8(1000, -1000, Fract8(255)), -1000);
         // Halfway between symmetric endpoints lands at (about) zero:
         // delta=2000, scale16by8(2000, 128) == 1007, -1000 + 1007 == 7.
-        assert_eq!(lerp15by8(-1000, 1000, 128), 7);
+        assert_eq!(lerp15by8(-1000, 1000, Fract8(128)), 7);
     }
 
     #[test]
     fn lerp15by16_handles_signed_endpoints() {
-        assert_eq!(lerp15by16(-1000, 1000, 0), -1000);
-        assert_eq!(lerp15by16(-1000, 1000, 65535), 1000);
-        assert_eq!(lerp15by16(1000, -1000, 65535), -1000);
+        assert_eq!(lerp15by16(-1000, 1000, Fract16(0)), -1000);
+        assert_eq!(lerp15by16(-1000, 1000, Fract16(65535)), 1000);
+        assert_eq!(lerp15by16(1000, -1000, Fract16(65535)), -1000);
     }
 
     #[test]

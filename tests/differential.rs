@@ -7,6 +7,7 @@
 //! exhaustive sweep would be too slow.
 
 use lib8tion as l;
+use lib8tion::{Fract8, Fract16};
 
 fn u16_samples() -> impl Iterator<Item = u16> {
     let boundaries = [
@@ -75,12 +76,12 @@ fn math8_byte_pairs_exhaustive() {
                 "add8to16({i},{j})"
             );
             assert_eq!(
-                l::scale8(i, j),
+                l::scale8(i, Fract8(j)),
                 fastled_ref::scale8(i, j),
                 "scale8({i},{j})"
             );
             assert_eq!(
-                l::scale8_video(i, j),
+                l::scale8_video(i, Fract8(j)),
                 fastled_ref::scale8_video(i, j),
                 "scale8_video({i},{j})"
             );
@@ -100,7 +101,7 @@ fn math8_byte_pairs_exhaustive() {
                 "blend8_16bit({i},{j},{j})"
             );
             assert_eq!(
-                l::lerp8by8(i, j, j),
+                l::lerp8by8(i, j, Fract8(j)),
                 fastled_ref::lerp8by8(i, j, j),
                 "lerp8by8({i},{j},{j})"
             );
@@ -197,7 +198,7 @@ fn scale8_variants_and_dim_brighten_exhaustive() {
         );
         for scale in 0..=255u8 {
             assert_eq!(
-                l::scale8_constexpr(i, scale),
+                l::scale8_constexpr(i, Fract8(scale)),
                 fastled_ref::scale8(i, scale),
                 "scale8_constexpr({i},{scale})"
             );
@@ -213,19 +214,19 @@ fn scale16_and_friends() {
             .chain((0..=255u32).map(|x| (x * 257) as u16))
         {
             assert_eq!(
-                l::scale16(i, scale),
+                l::scale16(i, Fract16(scale)),
                 fastled_ref::scale16(i, scale),
                 "scale16({i},{scale})"
             );
         }
         for scale in 0..=255u8 {
             assert_eq!(
-                l::scale16by8(i, scale),
+                l::scale16by8(i, Fract8(scale)),
                 fastled_ref::scale16by8(i, scale),
                 "scale16by8({i},{scale})"
             );
             assert_eq!(
-                l::lerp16by8(i, i.wrapping_add(12345), scale),
+                l::lerp16by8(i, i.wrapping_add(12345), Fract8(scale)),
                 fastled_ref::lerp16by8(i, i.wrapping_add(12345), scale),
                 "lerp16by8({i},_,{scale})"
             );
@@ -234,7 +235,7 @@ fn scale16_and_friends() {
     for i in u32_samples() {
         for scale in 0..=255u8 {
             assert_eq!(
-                l::scale32by8(i, scale),
+                l::scale32by8(i, Fract8(scale)),
                 fastled_ref::scale32by8(i, scale),
                 "scale32by8({i},{scale})"
             );
@@ -251,7 +252,7 @@ fn lerp16by16_and_lerp15_variants() {
             .chain((0..=255u32).map(|x| (x * 257) as u16))
         {
             assert_eq!(
-                l::lerp16by16(a, b, frac),
+                l::lerp16by16(a, b, Fract16(frac)),
                 fastled_ref::lerp16by16(a, b, frac),
                 "lerp16by16({a},{b},{frac})"
             );
@@ -261,14 +262,14 @@ fn lerp16by16_and_lerp15_variants() {
         let b = a.wrapping_add(12345);
         for frac in 0..=255u8 {
             assert_eq!(
-                l::lerp15by8(a, b, frac),
+                l::lerp15by8(a, b, Fract8(frac)),
                 fastled_ref::lerp15by8(a, b, frac),
                 "lerp15by8({a},{b},{frac})"
             );
         }
         for frac in [0u16, 1, 0x7FFF, 0x8000, 0xFFFF] {
             assert_eq!(
-                l::lerp15by16(a, b, frac),
+                l::lerp15by16(a, b, Fract16(frac)),
                 fastled_ref::lerp15by16(a, b, frac),
                 "lerp15by16({a},{b},{frac})"
             );

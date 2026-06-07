@@ -14,6 +14,7 @@
 //! See <https://easings.net> for a visual reference of these curve shapes.
 
 use crate::scale8::{scale8, scale16};
+use crate::{Fract8, Fract16};
 
 /// 8-bit quadratic ease-in/ease-out: an S-curve that starts and ends slowly
 /// and moves fastest through the middle, built from `scale8(x, x)` (i.e.
@@ -24,7 +25,7 @@ pub const fn ease8_in_out_quad(i: u8) -> u8 {
     if j & 0x80 != 0 {
         j = 255 - j;
     }
-    let jj = scale8(j, j);
+    let jj = scale8(j, Fract8(j));
     let mut jj2 = jj << 1;
     if i & 0x80 != 0 {
         jj2 = 255 - jj2;
@@ -39,7 +40,7 @@ pub const fn ease16_in_out_quad(i: u16) -> u16 {
     if j & 0x8000 != 0 {
         j = 65535 - j;
     }
-    let jj = scale16(j, j);
+    let jj = scale16(j, Fract16(j));
     let mut jj2 = jj << 1;
     if i & 0x8000 != 0 {
         jj2 = 65535 - jj2;
@@ -53,8 +54,8 @@ pub const fn ease16_in_out_quad(i: u16) -> u16 {
 /// terms).
 #[inline]
 pub const fn ease8_in_out_cubic(i: u8) -> u8 {
-    let ii = scale8(i, i);
-    let iii = scale8(ii, i);
+    let ii = scale8(i, Fract8(i));
+    let iii = scale8(ii, Fract8(i));
 
     let r1 = (3 * ii as u16).wrapping_sub(2 * iii as u16);
 
@@ -71,8 +72,8 @@ pub const fn ease8_in_out_cubic(i: u8) -> u8 {
 /// `LIB8STATIC` surface this crate ports.
 #[inline]
 pub const fn ease16_in_out_cubic(i: u16) -> u16 {
-    let ii = scale16(i, i) as u32;
-    let iii = scale16(ii as u16, i) as u32;
+    let ii = scale16(i, Fract16(i)) as u32;
+    let iii = scale16(ii as u16, Fract16(i)) as u32;
 
     let r1 = (3 * ii).wrapping_sub(2 * iii);
 

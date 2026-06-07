@@ -13,21 +13,23 @@
 
 use crate::scale8::{scale8, scale16};
 use crate::trig8::{sin8, sin16};
+use crate::{Accum88, Fract8, Fract16};
 
 /// Generates a 16-bit "beat" ramp from a Q8.8 fixed-point BPM value.
 ///
-/// `bpm88` is beats-per-minute in `Q8.8` format (high byte = whole BPM, low
-/// byte = fractional BPM in 1/256ths — e.g. `120 << 8` for "120.0 BPM", or
-/// `(120 << 8) | 128` for "120.5 BPM"). `timebase` shifts the phase — the
-/// ramp restarts when `now_millis == timebase`. Returns a value that ramps
-/// from `0` to `65535` and wraps, completing one cycle per beat.
+/// `bpm88` is beats-per-minute in [`Accum88`] (`Q8.8`) format (high byte =
+/// whole BPM, low byte = fractional BPM in 1/256ths — e.g. `Accum88(120 << 8)`
+/// for "120.0 BPM", or `Accum88((120 << 8) | 128)` for "120.5 BPM").
+/// `timebase` shifts the phase — the ramp restarts when `now_millis ==
+/// timebase`. Returns a value that ramps from `0` to `65535` and wraps,
+/// completing one cycle per beat.
 #[inline]
-pub const fn beat88(bpm88: u16, timebase: u32, now_millis: u32) -> u16 {
+pub const fn beat88(bpm88: Accum88, timebase: u32, now_millis: u32) -> u16 {
     // 65536 ticks-per-beat-cycle : 60000 ms-per-minute reduces to ~280:256;
     // rounding to 280 keeps this a cheap multiply-and-shift (see FastLED's
     // comment in lib8tion.h) at the cost of beats running ~0.07% fast.
     let elapsed = now_millis.wrapping_sub(timebase);
-    let scaled = elapsed.wrapping_mul(bpm88 as u32).wrapping_mul(280);
+    let scaled = elapsed.wrapping_mul(bpm88.0 as u32).wrapping_mul(280);
     (scaled >> 16) as u16
 }
 
@@ -38,7 +40,7 @@ pub const fn beat88(bpm88: u16, timebase: u32, now_millis: u32) -> u16 {
 #[inline]
 pub const fn beat16(bpm: u16, timebase: u32, now_millis: u32) -> u16 {
     let bpm88 = if bpm < 256 { bpm << 8 } else { bpm };
-    beat88(bpm88, timebase, now_millis)
+    beat88(Accum88(bpm88), timebase, now_millis)
 }
 
 /// Generates an 8-bit "beat" ramp from a plain BPM value — see [`beat16`],
@@ -56,7 +58,7 @@ pub const fn beat8(bpm: u16, timebase: u32, now_millis: u32) -> u8 {
 /// for the full output range.
 #[inline]
 pub const fn beatsin88(
-    bpm88: u16,
+    bpm88: Accum88,
     lowest: u16,
     highest: u16,
     timebase: u32,
@@ -66,7 +68,7 @@ pub const fn beatsin88(
     let beat = beat88(bpm88, timebase, now_millis);
     let beatsin = (sin16(beat.wrapping_add(phase_offset)) as i32 + 32768) as u16;
     let rangewidth = highest.wrapping_sub(lowest);
-    let scaledbeat = scale16(beatsin, rangewidth);
+    let scaledbeat = scale16(beatsin, Fract16(rangewidth));
     lowest.wrapping_add(scaledbeat)
 }
 
@@ -84,7 +86,7 @@ pub const fn beatsin16(
     let beat = beat16(bpm, timebase, now_millis);
     let beatsin = (sin16(beat.wrapping_add(phase_offset)) as i32 + 32768) as u16;
     let rangewidth = highest.wrapping_sub(lowest);
-    let scaledbeat = scale16(beatsin, rangewidth);
+    let scaledbeat = scale16(beatsin, Fract16(rangewidth));
     lowest.wrapping_add(scaledbeat)
 }
 
@@ -106,8 +108,204 @@ pub const fn beatsin8(
     let beat = beat8(bpm, timebase, now_millis);
     let beatsin = sin8(beat.wrapping_add(phase_offset));
     let rangewidth = highest.wrapping_sub(lowest);
-    let scaledbeat = scale8(beatsin, rangewidth);
+    let scaledbeat = scale8(beatsin, Fract8(rangewidth));
     lowest.wrapping_add(scaledbeat)
+}
+
+/// Builder for [`beatsin8`] — lets a sine-wave oscillator's tempo, output
+/// range, timebase and phase offset be configured once and then sampled
+/// repeatedly via [`at`](Self::at), instead of threading all five parameters
+/// through every call site.
+///
+/// ```
+/// use lib8tion::BeatSin8;
+///
+/// let wave = BeatSin8::new(120).range(10, 200).phase_offset(64);
+/// let v = wave.at(1234);
+/// assert!((10..=200).contains(&v));
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BeatSin8 {
+    bpm: u16,
+    lowest: u8,
+    highest: u8,
+    timebase: u32,
+    phase_offset: u8,
+}
+
+impl BeatSin8 {
+    /// Starts building an oscillator at `bpm` (see [`beat8`]), with the full
+    /// `0..=255` output range, zero timebase and zero phase offset.
+    #[inline]
+    pub const fn new(bpm: u16) -> Self {
+        Self {
+            bpm,
+            lowest: 0,
+            highest: 255,
+            timebase: 0,
+            phase_offset: 0,
+        }
+    }
+
+    /// Sets the output range the wave swings between (inclusive).
+    #[inline]
+    pub const fn range(mut self, lowest: u8, highest: u8) -> Self {
+        self.lowest = lowest;
+        self.highest = highest;
+        self
+    }
+
+    /// Sets the phase timebase — the wave restarts when `now_millis ==
+    /// timebase`.
+    #[inline]
+    pub const fn timebase(mut self, timebase: u32) -> Self {
+        self.timebase = timebase;
+        self
+    }
+
+    /// Sets the phase offset added to the beat ramp before taking its sine.
+    #[inline]
+    pub const fn phase_offset(mut self, phase_offset: u8) -> Self {
+        self.phase_offset = phase_offset;
+        self
+    }
+
+    /// Samples the wave at `now_millis` — see [`beatsin8`].
+    #[inline]
+    pub const fn at(&self, now_millis: u32) -> u8 {
+        beatsin8(
+            self.bpm,
+            self.lowest,
+            self.highest,
+            self.timebase,
+            self.phase_offset,
+            now_millis,
+        )
+    }
+}
+
+/// Builder for [`beatsin16`] — see [`BeatSin8`] for the rationale; same shape,
+/// 16-bit output range and phase offset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BeatSin16 {
+    bpm: u16,
+    lowest: u16,
+    highest: u16,
+    timebase: u32,
+    phase_offset: u16,
+}
+
+impl BeatSin16 {
+    /// Starts building an oscillator at `bpm` (see [`beat16`]), with the full
+    /// `0..=65535` output range, zero timebase and zero phase offset.
+    #[inline]
+    pub const fn new(bpm: u16) -> Self {
+        Self {
+            bpm,
+            lowest: 0,
+            highest: 65535,
+            timebase: 0,
+            phase_offset: 0,
+        }
+    }
+
+    /// Sets the output range the wave swings between (inclusive).
+    #[inline]
+    pub const fn range(mut self, lowest: u16, highest: u16) -> Self {
+        self.lowest = lowest;
+        self.highest = highest;
+        self
+    }
+
+    /// Sets the phase timebase — the wave restarts when `now_millis ==
+    /// timebase`.
+    #[inline]
+    pub const fn timebase(mut self, timebase: u32) -> Self {
+        self.timebase = timebase;
+        self
+    }
+
+    /// Sets the phase offset added to the beat ramp before taking its sine.
+    #[inline]
+    pub const fn phase_offset(mut self, phase_offset: u16) -> Self {
+        self.phase_offset = phase_offset;
+        self
+    }
+
+    /// Samples the wave at `now_millis` — see [`beatsin16`].
+    #[inline]
+    pub const fn at(&self, now_millis: u32) -> u16 {
+        beatsin16(
+            self.bpm,
+            self.lowest,
+            self.highest,
+            self.timebase,
+            self.phase_offset,
+            now_millis,
+        )
+    }
+}
+
+/// Builder for [`beatsin88`] — see [`BeatSin8`] for the rationale; takes its
+/// tempo as an [`Accum88`] (`Q8.8` BPM) for fractional-BPM precision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BeatSin88 {
+    bpm88: Accum88,
+    lowest: u16,
+    highest: u16,
+    timebase: u32,
+    phase_offset: u16,
+}
+
+impl BeatSin88 {
+    /// Starts building an oscillator at `bpm88` (see [`beat88`]), with the
+    /// full `0..=65535` output range, zero timebase and zero phase offset.
+    #[inline]
+    pub const fn new(bpm88: Accum88) -> Self {
+        Self {
+            bpm88,
+            lowest: 0,
+            highest: 65535,
+            timebase: 0,
+            phase_offset: 0,
+        }
+    }
+
+    /// Sets the output range the wave swings between (inclusive).
+    #[inline]
+    pub const fn range(mut self, lowest: u16, highest: u16) -> Self {
+        self.lowest = lowest;
+        self.highest = highest;
+        self
+    }
+
+    /// Sets the phase timebase — the wave restarts when `now_millis ==
+    /// timebase`.
+    #[inline]
+    pub const fn timebase(mut self, timebase: u32) -> Self {
+        self.timebase = timebase;
+        self
+    }
+
+    /// Sets the phase offset added to the beat ramp before taking its sine.
+    #[inline]
+    pub const fn phase_offset(mut self, phase_offset: u16) -> Self {
+        self.phase_offset = phase_offset;
+        self
+    }
+
+    /// Samples the wave at `now_millis` — see [`beatsin88`].
+    #[inline]
+    pub const fn at(&self, now_millis: u32) -> u16 {
+        beatsin88(
+            self.bpm88,
+            self.lowest,
+            self.highest,
+            self.timebase,
+            self.phase_offset,
+            now_millis,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -116,20 +314,20 @@ mod tests {
 
     #[test]
     fn beat88_ramps_and_wraps_with_time() {
-        assert_eq!(beat88(120 << 8, 0, 0), 0);
+        assert_eq!(beat88(Accum88(120 << 8), 0, 0), 0);
         // 250 * (120<<8) * 280 == 2_150_400_000; >> 16 == 32812 (a beat at
         // 120 BPM lasts 60000/120 = 500ms, so this is ~halfway through it).
-        assert_eq!(beat88(120 << 8, 0, 250), 32812);
+        assert_eq!(beat88(Accum88(120 << 8), 0, 250), 32812);
         // 500 * (120<<8) * 280 == 4_300_800_000, which overflows u32 and
         // wraps to 5_832_704 before the shift — exactly like the original
         // C, which computes this chain in 32-bit and relies on the wrap.
-        assert_eq!(beat88(120 << 8, 0, 500), 89);
+        assert_eq!(beat88(Accum88(120 << 8), 0, 500), 89);
     }
 
     #[test]
     fn beat16_promotes_plain_bpm_to_q88() {
         assert_eq!(beat16(120, 0, 250), beat16(120 << 8, 0, 250));
-        assert_eq!(beat16(120, 0, 250), beat88(120 << 8, 0, 250));
+        assert_eq!(beat16(120, 0, 250), beat88(Accum88(120 << 8), 0, 250));
     }
 
     #[test]
@@ -143,7 +341,10 @@ mod tests {
     fn timebase_shifts_phase() {
         // Shifting the timebase forward by `d` is the same as looking `d`
         // milliseconds further into the future from timebase zero.
-        assert_eq!(beat88(120 << 8, 1000, 1500), beat88(120 << 8, 0, 500));
+        assert_eq!(
+            beat88(Accum88(120 << 8), 1000, 1500),
+            beat88(Accum88(120 << 8), 0, 500)
+        );
     }
 
     #[test]
@@ -158,7 +359,7 @@ mod tests {
                 "beatsin16 out of range: {v16}"
             );
 
-            let v88 = beatsin88(120 << 8, 1000, 60000, 0, 0, ms);
+            let v88 = beatsin88(Accum88(120 << 8), 1000, 60000, 0, 0, ms);
             assert!(
                 (1000..=60000).contains(&v88),
                 "beatsin88 out of range: {v88}"
@@ -187,5 +388,45 @@ mod tests {
         // A half-cycle phase offset should land on (roughly) the opposite
         // side of the wave.
         assert_ne!(unshifted, shifted);
+    }
+
+    #[test]
+    fn builders_match_their_function_counterparts() {
+        for ms in (0..=2000u32).step_by(37) {
+            assert_eq!(
+                BeatSin8::new(120)
+                    .range(10, 200)
+                    .timebase(50)
+                    .phase_offset(64)
+                    .at(ms),
+                beatsin8(120, 10, 200, 50, 64, ms)
+            );
+            assert_eq!(
+                BeatSin16::new(120)
+                    .range(1000, 60000)
+                    .timebase(50)
+                    .phase_offset(1234)
+                    .at(ms),
+                beatsin16(120, 1000, 60000, 50, 1234, ms)
+            );
+            assert_eq!(
+                BeatSin88::new(Accum88(120 << 8))
+                    .range(1000, 60000)
+                    .timebase(50)
+                    .phase_offset(1234)
+                    .at(ms),
+                beatsin88(Accum88(120 << 8), 1000, 60000, 50, 1234, ms)
+            );
+        }
+    }
+
+    #[test]
+    fn builder_defaults_cover_the_full_output_range() {
+        assert_eq!(BeatSin8::new(120).at(0), beatsin8(120, 0, 255, 0, 0, 0));
+        assert_eq!(BeatSin16::new(120).at(0), beatsin16(120, 0, 65535, 0, 0, 0));
+        assert_eq!(
+            BeatSin88::new(Accum88(120 << 8)).at(0),
+            beatsin88(Accum88(120 << 8), 0, 65535, 0, 0, 0)
+        );
     }
 }

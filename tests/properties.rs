@@ -13,6 +13,7 @@
 //!     a differential check.
 
 use lib8tion as l;
+use lib8tion::{Fract8, Fract16};
 use proptest::prelude::*;
 
 // ---------------------------------------------------------------------------
@@ -33,13 +34,13 @@ proptest! {
 
     #[test]
     fn scale16_family_matches_reference(i: u16, scale16: u16, scale8: u8) {
-        prop_assert_eq!(l::scale16(i, scale16), fastled_ref::scale16(i, scale16));
-        prop_assert_eq!(l::scale16by8(i, scale8), fastled_ref::scale16by8(i, scale8));
+        prop_assert_eq!(l::scale16(i, Fract16(scale16)), fastled_ref::scale16(i, scale16));
+        prop_assert_eq!(l::scale16by8(i, Fract8(scale8)), fastled_ref::scale16by8(i, scale8));
     }
 
     #[test]
     fn scale32by8_matches_reference(i: u32, scale: u8) {
-        prop_assert_eq!(l::scale32by8(i, scale), fastled_ref::scale32by8(i, scale));
+        prop_assert_eq!(l::scale32by8(i, Fract8(scale)), fastled_ref::scale32by8(i, scale));
     }
 
     #[test]
@@ -55,14 +56,14 @@ proptest! {
 
     #[test]
     fn lerp16_family_matches_reference(a: u16, b: u16, frac8: u8, frac16: u16) {
-        prop_assert_eq!(l::lerp16by8(a, b, frac8), fastled_ref::lerp16by8(a, b, frac8));
-        prop_assert_eq!(l::lerp16by16(a, b, frac16), fastled_ref::lerp16by16(a, b, frac16));
+        prop_assert_eq!(l::lerp16by8(a, b, Fract8(frac8)), fastled_ref::lerp16by8(a, b, frac8));
+        prop_assert_eq!(l::lerp16by16(a, b, Fract16(frac16)), fastled_ref::lerp16by16(a, b, frac16));
     }
 
     #[test]
     fn lerp15_family_matches_reference(a: i16, b: i16, frac8: u8, frac16: u16) {
-        prop_assert_eq!(l::lerp15by8(a, b, frac8), fastled_ref::lerp15by8(a, b, frac8));
-        prop_assert_eq!(l::lerp15by16(a, b, frac16), fastled_ref::lerp15by16(a, b, frac16));
+        prop_assert_eq!(l::lerp15by8(a, b, Fract8(frac8)), fastled_ref::lerp15by8(a, b, frac8));
+        prop_assert_eq!(l::lerp15by16(a, b, Fract16(frac16)), fastled_ref::lerp15by16(a, b, frac16));
     }
 
     #[test]
@@ -110,8 +111,8 @@ proptest! {
 
     #[test]
     fn scale8_zero_scale_is_zero(x: u8) {
-        prop_assert_eq!(l::scale8(x, 0), 0);
-        prop_assert_eq!(l::scale8(0, x), 0);
+        prop_assert_eq!(l::scale8(x, Fract8(0)), 0);
+        prop_assert_eq!(l::scale8(0, Fract8(x)), 0);
     }
 
     #[test]
@@ -129,8 +130,8 @@ proptest! {
 
     #[test]
     fn lerp8by8_hits_its_endpoints_at_frac_extremes(a: u8, b: u8) {
-        prop_assert_eq!(l::lerp8by8(a, b, 0), a);
-        prop_assert_eq!(l::lerp8by8(a, a, 255), a);
+        prop_assert_eq!(l::lerp8by8(a, b, Fract8(0)), a);
+        prop_assert_eq!(l::lerp8by8(a, a, Fract8(255)), a);
     }
 
     #[test]
@@ -166,7 +167,7 @@ proptest! {
     #[test]
     fn sin16_is_bounded_and_matches_lookup_table_range(theta: u16) {
         let s = l::sin16(theta);
-        prop_assert!(s >= -32645 && s <= 32645);
+        prop_assert!((-32645..=32645).contains(&s));
     }
 }
 

@@ -63,6 +63,11 @@ macro_rules! impl_mul_unsigned {
         impl<const F: u32> Mul<$narrow> for Qfx<F> {
             type Output = $narrow;
 
+            // The `>>` here rescales the fractional product back from `2^F`
+            // fixed-point into the output's integer domain — it's the
+            // defining operation of fixed-point multiplication, not a typo
+            // for `*`/`+`.
+            #[allow(clippy::suspicious_arithmetic_impl)]
             #[inline]
             fn mul(self, v: $narrow) -> $narrow {
                 let v = v as $wide;
@@ -88,6 +93,9 @@ macro_rules! impl_mul_signed {
         impl<const F: u32> Mul<$narrow> for Qfx<F> {
             type Output = $narrow;
 
+            // See the unsigned impl above — the `>>` rescales the fixed-point
+            // fractional product, it isn't a mistaken operator.
+            #[allow(clippy::suspicious_arithmetic_impl)]
             #[inline]
             fn mul(self, v: $narrow) -> $narrow {
                 let v = v as $wide;

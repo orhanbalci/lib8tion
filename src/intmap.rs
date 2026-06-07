@@ -20,6 +20,20 @@ mod sealed {
 /// [`int_scale`]. This trait is sealed — it cannot be implemented outside of
 /// this crate — so unsupported conversions are rejected at compile time, just
 /// like the C++ template specializations they replace.
+///
+/// Brought into scope at the crate root, so the postfix form
+/// `x.int_scale()` works directly wherever the target type is clear from
+/// context (a binding's type annotation, a function argument, ...) — the same
+/// shape as [`Into::into`]. Reach for the free function [`int_scale`] when you
+/// need to spell the target type out explicitly instead.
+///
+/// ```
+/// use lib8tion::IntScale;
+///
+/// let x: u8 = 0xAB;
+/// let y: u16 = x.int_scale();
+/// assert_eq!(y, 0xABAB);
+/// ```
 pub trait IntScale<To>: sealed::Sealed {
     /// Rescale `self` from this type's range into `To`'s range, preserving
     /// relative position.
@@ -32,7 +46,11 @@ pub trait IntScale<To>: sealed::Sealed {
 /// 8-bit range).
 ///
 /// Both type parameters must be given explicitly to avoid masking bugs with
-/// implicit conversions: `int_scale::<u8, u16>(x)`, not `int_scale(x)`.
+/// implicit conversions: `int_scale::<u8, u16>(x)`, not `int_scale(x)`. When
+/// the target type is already clear from context, [`IntScale::int_scale`]'s
+/// postfix form (`x.int_scale()`) reads more naturally — this free function
+/// exists for the cases where spelling out both ends explicitly is clearer
+/// (e.g. inside a generic helper, or simply for readability at the call site).
 #[inline(always)]
 pub fn int_scale<From, To>(x: From) -> To
 where
@@ -282,6 +300,16 @@ mod tests {
     fn identity_is_noop() {
         assert_eq!(int_scale::<u8, u8>(123), 123);
         assert_eq!(int_scale::<i32, i32>(-7), -7);
+    }
+
+    #[test]
+    fn postfix_form_matches_the_free_function() {
+        let x: u8 = 0xAB;
+        let up: u16 = x.int_scale();
+        assert_eq!(up, int_scale::<u8, u16>(x));
+
+        let down: u8 = 0x1234u16.int_scale();
+        assert_eq!(down, int_scale::<u16, u8>(0x1234));
     }
 
     #[test]

@@ -28,9 +28,15 @@ pub const DEFAULT_SEED: u16 = 1337;
 /// struct, it can live wherever is convenient — a `static` behind your own
 /// synchronization primitive, a field on your animation state, a local
 /// variable seeded per-frame, etc.
+///
+/// `seed` is the generator's full internal state — public, since it's a bare
+/// `Copy` value with no invariant to protect (any `u16` is a valid seed).
+/// Read it to snapshot/restore a generator's position, or write it directly
+/// to reseed; [`add_entropy`](Rng16::add_entropy) remains the convenient way
+/// to perturb it without overwriting it outright.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rng16 {
-    seed: u16,
+    pub seed: u16,
 }
 
 impl Default for Rng16 {
@@ -53,21 +59,9 @@ impl Rng16 {
         Self { seed }
     }
 
-    /// Returns the current internal seed/state.
-    #[inline]
-    pub const fn seed(&self) -> u16 {
-        self.seed
-    }
-
-    /// Replaces the internal seed/state.
-    #[inline]
-    pub fn set_seed(&mut self, seed: u16) {
-        self.seed = seed;
-    }
-
-    /// XORs `entropy` into the seed — a cheap way to fold in real-world
-    /// randomness (e.g. sensor noise, timing jitter) without disturbing the
-    /// generator's structure.
+    /// Adds `entropy` into the seed (wrapping) — a cheap way to fold in
+    /// real-world randomness (e.g. sensor noise, timing jitter) without
+    /// disturbing the generator's structure.
     #[inline]
     pub fn add_entropy(&mut self, entropy: u16) {
         self.seed = self.seed.wrapping_add(entropy);
@@ -94,48 +88,62 @@ impl Rng16 {
         (s as u8).wrapping_add((s >> 8) as u8)
     }
 
-    /// Returns a random byte in `0..limit` (exclusive).
-    ///
-    /// If `limit == 0`, always returns `0`.
-    #[inline]
-    pub fn random8_below(&mut self, limit: u8) -> u8 {
-        let r = self.random8();
-        ((r as u16 * limit as u16) >> 8) as u8
-    }
-
-    /// Returns a random byte in `min..limit` (inclusive lower, exclusive
-    /// upper bound). If `limit <= min`, the range wraps per `u8` arithmetic,
-    /// matching the original C semantics — pass `min < limit` to stay in
-    /// well-defined territory.
-    #[inline]
-    pub fn random8_range(&mut self, min: u8, limit: u8) -> u8 {
-        let delta = limit.wrapping_sub(min);
-        self.random8_below(delta).wrapping_add(min)
-    }
-
     /// Returns a random 16-bit value in `0..=65535`.
     #[inline]
     pub fn random16(&mut self) -> u16 {
         self.next_state()
     }
 
-    /// Returns a random 16-bit value in `0..limit` (exclusive).
+    /// Returns a random value within `range` — inclusive lower bound,
+    /// exclusive upper bound, the same convention as
+    /// [`rand::Rng::gen_range`](https://docs.rs/rand/latest/rand/trait.Rng.html#method.gen_range)
+    /// (and as `core::ops::Range` itself).
     ///
-    /// If `limit == 0`, always returns `0`.
+    /// Works for both `u8` and `u16` (the only widths [`Rng16`] natively
+    /// generates) — pass `0..limit` for "below `limit`" or `min..limit` for
+    /// a shifted range; both collapse to a single call instead of FastLED's
+    /// four separate `random{8,16}_{below,range}` functions.
+    ///
+    /// An empty or descending range (`range.end <= range.start`) wraps per
+    /// the output type's unsigned arithmetic, matching the original C
+    /// semantics — pass a non-empty ascending range to stay in
+    /// well-defined territory.
     #[inline]
-    pub fn random16_below(&mut self, limit: u16) -> u16 {
-        let r = self.random16();
-        let p = limit as u32 * r as u32;
-        (p >> 16) as u16
+    pub fn gen_range<T: RangeSample>(&mut self, range: core::ops::Range<T>) -> T {
+        T::sample_range(self, range)
     }
+}
 
-    /// Returns a random 16-bit value in `min..limit` (inclusive lower,
-    /// exclusive upper bound). If `limit <= min`, the range wraps per `u16`
-    /// arithmetic, matching the original C semantics.
+/// Integer widths [`Rng16::gen_range`] can produce — implemented for [`u8`]
+/// and [`u16`], the two widths [`Rng16`]'s underlying generator natively
+/// supports.
+///
+/// This is what lets `gen_range` be a single generic entry point rather than
+/// a family of identically-shaped `random8_below`/`random16_range`/...
+/// methods differing only in width; the trait dispatches to the right
+/// scaling arithmetic for `Self`.
+pub trait RangeSample: Sized + Copy {
+    #[doc(hidden)]
+    fn sample_range(rng: &mut Rng16, range: core::ops::Range<Self>) -> Self;
+}
+
+impl RangeSample for u8 {
     #[inline]
-    pub fn random16_range(&mut self, min: u16, limit: u16) -> u16 {
-        let delta = limit.wrapping_sub(min);
-        self.random16_below(delta).wrapping_add(min)
+    fn sample_range(rng: &mut Rng16, range: core::ops::Range<u8>) -> u8 {
+        let span = range.end.wrapping_sub(range.start);
+        let r = rng.random8();
+        let scaled = ((r as u16 * span as u16) >> 8) as u8;
+        scaled.wrapping_add(range.start)
+    }
+}
+
+impl RangeSample for u16 {
+    #[inline]
+    fn sample_range(rng: &mut Rng16, range: core::ops::Range<u16>) -> u16 {
+        let span = range.end.wrapping_sub(range.start);
+        let r = rng.random16();
+        let scaled = ((span as u32 * r as u32) >> 16) as u16;
+        scaled.wrapping_add(range.start)
     }
 }
 
@@ -166,13 +174,17 @@ mod tests {
     fn bounded_generation_stays_in_range() {
         let mut rng = Rng16::new(42);
         for _ in 0..2048 {
-            assert!(rng.random8_below(10) < 10);
-            assert!(rng.random8_range(5, 15) < 15);
-            assert!(rng.random16_below(1000) < 1000);
-            assert!(rng.random16_range(100, 200) < 200);
+            let a: u8 = rng.gen_range(0..10);
+            let b: u8 = rng.gen_range(5..15);
+            let c: u16 = rng.gen_range(0..1000);
+            let d: u16 = rng.gen_range(100..200);
+            assert!(a < 10);
+            assert!((5..15).contains(&b));
+            assert!(c < 1000);
+            assert!((100..200).contains(&d));
         }
-        assert_eq!(rng.random8_below(0), 0);
-        assert_eq!(rng.random16_below(0), 0);
+        assert_eq!(rng.gen_range(0u8..0), 0);
+        assert_eq!(rng.gen_range(0u16..0), 0);
     }
 
     #[test]
@@ -180,14 +192,14 @@ mod tests {
         let mut a = Rng16::new(7);
         let mut b = a;
         b.add_entropy(0x1234);
-        assert_ne!(a.seed(), b.seed());
+        assert_ne!(a.seed, b.seed);
         assert_ne!(a.random16(), b.random16());
     }
 
     #[test]
-    fn seed_accessors_round_trip() {
+    fn seed_field_can_be_read_and_overwritten_directly() {
         let mut rng = Rng16::new(0);
-        rng.set_seed(0xBEEF);
-        assert_eq!(rng.seed(), 0xBEEF);
+        rng.seed = 0xBEEF;
+        assert_eq!(rng.seed, 0xBEEF);
     }
 }

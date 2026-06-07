@@ -21,7 +21,7 @@ use crate::Fract16;
 /// maps back to the input exactly).
 #[inline(always)]
 pub const fn scale8(i: u8, scale: Fract8) -> u8 {
-    (((i as u16) * (1 + scale as u16)) >> 8) as u8
+    (((i as u16) * (1 + scale.0 as u16)) >> 8) as u8
 }
 
 /// `const`-evaluable version of [`scale8`], for use in `const` contexts.
@@ -36,8 +36,8 @@ pub const fn scale8_constexpr(i: u8, scale: Fract8) -> u8 {
 /// ever fully extinguishing a lit pixel.
 #[inline(always)]
 pub const fn scale8_video(i: u8, scale: Fract8) -> u8 {
-    let j = ((i as i32 * scale as i32) >> 8) as u8;
-    j + (((i != 0) && (scale != 0)) as u8)
+    let j = ((i as i32 * scale.0 as i32) >> 8) as u8;
+    j + (((i != 0) && (scale.0 != 0)) as u8)
 }
 
 /// Scale `r`, `g` and `b` in place by a common fixed-point fraction
@@ -61,9 +61,9 @@ pub fn nscale8x3(r: &mut u8, g: &mut u8, b: &mut u8, scale: Fract8) {
 #[inline(always)]
 pub const fn nscale8x3_constexpr(r: u8, g: u8, b: u8, scale: Fract8) -> (u8, u8, u8) {
     (
-        ((r as u32 * scale as u32) >> 8) as u8,
-        ((g as u32 * scale as u32) >> 8) as u8,
-        ((b as u32 * scale as u32) >> 8) as u8,
+        ((r as u32 * scale.0 as u32) >> 8) as u8,
+        ((g as u32 * scale.0 as u32) >> 8) as u8,
+        ((b as u32 * scale.0 as u32) >> 8) as u8,
     )
 }
 
@@ -122,31 +122,32 @@ pub fn nscale8_video(values: &mut [u8], scale: Fract8) {
 /// Scale a 16-bit value by an 8-bit fixed-point fraction `scale / 256`.
 #[inline(always)]
 pub const fn scale16by8(i: u16, scale: Fract8) -> u16 {
-    if scale == 0 {
+    if scale.0 == 0 {
         0
     } else {
-        (((i as u32) * (1 + scale as u32)) >> 8) as u16
+        (((i as u32) * (1 + scale.0 as u32)) >> 8) as u16
     }
 }
 
 /// Scale a 16-bit value by a 16-bit fixed-point fraction `scale / 65536`.
 #[inline(always)]
 pub const fn scale16(i: u16, scale: Fract16) -> u16 {
-    (((i as u32) * (1 + scale as u32)) / 65536) as u16
+    (((i as u32) * (1 + scale.0 as u32)) / 65536) as u16
 }
 
 /// Scale a 32-bit value by an 8-bit fixed-point fraction `scale / 256`.
 /// Uses a 64-bit intermediate to avoid overflow.
 #[inline(always)]
 pub const fn scale32by8(i: u32, scale: Fract8) -> u32 {
-    if scale == 0 {
+    if scale.0 == 0 {
         0
     } else {
-        (((i as u64) * (1 + scale as u64)) >> 8) as u32
+        (((i as u64) * (1 + scale.0 as u64)) >> 8) as u32
     }
 }
 
-/// Apply a gamma-2-ish dimming curve: `scale8(x, x)`.
+/// Apply a gamma-2-ish dimming curve: `scale8(x, Fract8(x))` — i.e. treats
+/// the brightness byte itself as its own scale factor.
 ///
 /// The eye perceives brightness non-linearly, so a linear PWM duty cycle of
 /// 50% looks much brighter than "half as bright". This (and its siblings)
@@ -154,14 +155,14 @@ pub const fn scale32by8(i: u32, scale: Fract8) -> u32 {
 /// (128) *looks* like it's about half as bright as full (255).
 #[inline(always)]
 pub const fn dim8_raw(x: u8) -> u8 {
-    scale8(x, x)
+    scale8(x, Fract8(x))
 }
 
 /// Like [`dim8_raw`], but "video" style — the result never drops to zero for
 /// a non-zero input.
 #[inline(always)]
 pub const fn dim8_video(x: u8) -> u8 {
-    scale8_video(x, x)
+    scale8_video(x, Fract8(x))
 }
 
 /// Linear-ish dimming curve: halves values below the midpoint, applies
@@ -169,9 +170,9 @@ pub const fn dim8_video(x: u8) -> u8 {
 #[inline(always)]
 pub const fn dim8_lin(x: u8) -> u8 {
     if x & 0x80 != 0 {
-        scale8(x, x)
+        scale8(x, Fract8(x))
     } else {
-        (x + 1) / 2
+        x.div_ceil(2)
     }
 }
 
@@ -179,14 +180,14 @@ pub const fn dim8_lin(x: u8) -> u8 {
 #[inline(always)]
 pub const fn brighten8_raw(x: u8) -> u8 {
     let ix = 255 - x;
-    255 - scale8(ix, ix)
+    255 - scale8(ix, Fract8(ix))
 }
 
 /// Inverse of [`dim8_video`].
 #[inline(always)]
 pub const fn brighten8_video(x: u8) -> u8 {
     let ix = 255 - x;
-    255 - scale8_video(ix, ix)
+    255 - scale8_video(ix, Fract8(ix))
 }
 
 /// Inverse of [`dim8_lin`].
@@ -194,9 +195,9 @@ pub const fn brighten8_video(x: u8) -> u8 {
 pub const fn brighten8_lin(x: u8) -> u8 {
     let ix = 255 - x;
     let out = if ix & 0x80 != 0 {
-        scale8(ix, ix)
+        scale8(ix, Fract8(ix))
     } else {
-        (ix + 1) / 2
+        ix.div_ceil(2)
     };
     255 - out
 }
@@ -208,78 +209,82 @@ mod tests {
     #[test]
     fn scale8_round_trips_at_max() {
         for x in 0..=255u8 {
-            assert_eq!(scale8(x, 255), x);
-            assert_eq!(scale8(x, 0), 0);
+            assert_eq!(scale8(x, Fract8(255)), x);
+            assert_eq!(scale8(x, Fract8(0)), 0);
         }
     }
 
     #[test]
     fn scale8_known_values() {
-        assert_eq!(scale8(255, 128), 128);
-        assert_eq!(scale8(128, 128), 64);
-        assert_eq!(scale8_constexpr(255, 128), scale8(255, 128));
+        assert_eq!(scale8(255, Fract8(128)), 128);
+        assert_eq!(scale8(128, Fract8(128)), 64);
+        assert_eq!(scale8_constexpr(255, Fract8(128)), scale8(255, Fract8(128)));
     }
 
     #[test]
     fn scale8_video_preserves_nonzero() {
         for scale in 1..=255u8 {
-            assert_ne!(scale8_video(1, scale), 0, "scale={scale}");
+            assert_ne!(scale8_video(1, Fract8(scale)), 0, "scale={scale}");
         }
-        assert_eq!(scale8_video(0, 255), 0);
-        assert_eq!(scale8_video(10, 0), 0);
-        assert_eq!(scale8_video(255, 255), 255);
+        assert_eq!(scale8_video(0, Fract8(255)), 0);
+        assert_eq!(scale8_video(10, Fract8(0)), 0);
+        assert_eq!(scale8_video(255, Fract8(255)), 255);
     }
 
     #[test]
     fn nscale_in_place_matches_scale8() {
         let (mut r, mut g, mut b) = (200u8, 100u8, 50u8);
-        nscale8x3(&mut r, &mut g, &mut b, 128);
+        nscale8x3(&mut r, &mut g, &mut b, Fract8(128));
         assert_eq!(
             (r, g, b),
-            (scale8(200, 128), scale8(100, 128), scale8(50, 128))
+            (
+                scale8(200, Fract8(128)),
+                scale8(100, Fract8(128)),
+                scale8(50, Fract8(128))
+            )
         );
 
         let (mut i, mut j) = (200u8, 50u8);
-        nscale8x2(&mut i, &mut j, 64);
-        assert_eq!((i, j), (scale8(200, 64), scale8(50, 64)));
+        nscale8x2(&mut i, &mut j, Fract8(64));
+        assert_eq!((i, j), (scale8(200, Fract8(64)), scale8(50, Fract8(64))));
     }
 
     #[test]
     fn nscale8_dims_a_whole_slice_in_place() {
         let mut strip = [200u8, 100, 50, 255, 0];
-        let expected: [u8; 5] = strip.map(|x| scale8(x, 64));
-        nscale8(&mut strip, 64);
+        let expected: [u8; 5] = strip.map(|x| scale8(x, Fract8(64)));
+        nscale8(&mut strip, Fract8(64));
         assert_eq!(strip, expected);
 
         // scale == 0 turns everything off; scale == 255 round-trips exactly.
         let mut strip = [10u8, 20, 30];
-        nscale8(&mut strip, 0);
+        nscale8(&mut strip, Fract8(0));
         assert_eq!(strip, [0, 0, 0]);
 
         let mut strip = [10u8, 20, 30];
-        nscale8(&mut strip, 255);
+        nscale8(&mut strip, Fract8(255));
         assert_eq!(strip, [10, 20, 30]);
     }
 
     #[test]
     fn nscale8_video_never_zeroes_a_lit_pixel() {
         let mut strip = [1u8, 50, 255];
-        nscale8_video(&mut strip, 1);
+        nscale8_video(&mut strip, Fract8(1));
         assert!(strip.iter().all(|&x| x != 0), "{strip:?}");
 
         let mut strip = [1u8, 50, 255];
-        nscale8_video(&mut strip, 0);
+        nscale8_video(&mut strip, Fract8(0));
         assert_eq!(strip, [0, 0, 0]);
     }
 
     #[test]
     fn wide_scaling() {
-        assert_eq!(scale16by8(0, 200), 0);
-        assert_eq!(scale16by8(65535, 0), 0);
-        assert_eq!(scale16by8(65535, 255), 65535);
-        assert_eq!(scale16(65535, 65535), 65535);
-        assert_eq!(scale32by8(u32::MAX, 255), u32::MAX);
-        assert_eq!(scale32by8(u32::MAX, 0), 0);
+        assert_eq!(scale16by8(0, Fract8(200)), 0);
+        assert_eq!(scale16by8(65535, Fract8(0)), 0);
+        assert_eq!(scale16by8(65535, Fract8(255)), 65535);
+        assert_eq!(scale16(65535, Fract16(65535)), 65535);
+        assert_eq!(scale32by8(u32::MAX, Fract8(255)), u32::MAX);
+        assert_eq!(scale32by8(u32::MAX, Fract8(0)), 0);
     }
 
     #[test]
