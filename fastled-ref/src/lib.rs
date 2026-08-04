@@ -30,6 +30,7 @@ mod ffi {
         pub fn fl_blend8_8bit(a: u8, b: u8, amount_of_b: u8) -> u8;
         pub fn fl_blend8_16bit(a: u8, b: u8, amount_of_b: u8) -> u8;
         pub fn fl_blend8(a: u8, b: u8, amount_of_b: u8) -> u8;
+        pub fn fl_blend8_8bit_full_range(a: u8, b: u8, amount_of_b: u8) -> u8;
         pub fn fl_mod8(a: u8, m: u8) -> u8;
         pub fn fl_addmod8(a: u8, b: u8, m: u8) -> u8;
         pub fn fl_submod8(a: u8, b: u8, m: u8) -> u8;
@@ -104,6 +105,7 @@ wrap!(abs8(i: i8) -> i8 => ffi::fl_abs8);
 wrap!(blend8_8bit(a: u8, b: u8, amount_of_b: u8) -> u8 => ffi::fl_blend8_8bit);
 wrap!(blend8_16bit(a: u8, b: u8, amount_of_b: u8) -> u8 => ffi::fl_blend8_16bit);
 wrap!(blend8(a: u8, b: u8, amount_of_b: u8) -> u8 => ffi::fl_blend8);
+wrap!(blend8_8bit_full_range(a: u8, b: u8, amount_of_b: u8) -> u8 => ffi::fl_blend8_8bit_full_range);
 wrap!(mod8(a: u8, m: u8) -> u8 => ffi::fl_mod8);
 wrap!(addmod8(a: u8, b: u8, m: u8) -> u8 => ffi::fl_addmod8);
 wrap!(submod8(a: u8, b: u8, m: u8) -> u8 => ffi::fl_submod8);

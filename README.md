@@ -26,7 +26,7 @@ and the same bit-for-bit behavior — to `no_std` Rust.
 
 | Module | Contents |
 | --- | --- |
-| [`math8`](src/math8.rs) | Saturating/wrapping byte arithmetic: `qadd8`, `qsub8`, `add8`, `avg8`, `mul8`, `qmul8`, `abs8`, `blend8`, `mod8`, `sqrt8`/`sqrt16`, ... |
+| [`math8`](src/math8.rs) | Saturating/wrapping byte arithmetic: `qadd8`, `qsub8`, `add8`, `avg8`, `mul8`, `qmul8`, `abs8`, `blend8` (+ `_8bit`/`_16bit`/`_8bit_full_range` variants), `mod8`, `sqrt8`/`sqrt16`, ... |
 | [`scale8`](src/scale8.rs) | Fast scaling & dimming: `scale8`, `scale8_video`, `scale16`, `nscale8x3`/`nscale8` (in place, incl. whole-slice), `dim8_*` / `brighten8_*` |
 | [`trig8`](src/trig8.rs) | Lookup-table approximations of `sin`/`cos`: `sin8`, `cos8`, `sin16`, `cos16` |
 | [`lerp`](src/lerp.rs) | Linear interpolation & range mapping: `lerp8by8`, `lerp16by8`, `lerp16by16`, `lerp15by8`, `lerp15by16`, `map8` |

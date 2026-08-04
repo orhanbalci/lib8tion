@@ -110,6 +110,66 @@ fn math8_byte_pairs_exhaustive() {
 }
 
 #[test]
+fn blend8_variants_exhaustive() {
+    // The blend8 family is small enough to sweep over its entire 2^24
+    // (a, b, amount_of_b) domain, which is worth doing: the variants differ
+    // only in a bias term, so a mix-up between them stays invisible across
+    // most of the range and only shows up near the endpoints.
+    for a in 0..=255u8 {
+        for b in 0..=255u8 {
+            for amount in 0..=255u8 {
+                assert_eq!(
+                    l::blend8_8bit(a, b, amount),
+                    fastled_ref::blend8_8bit(a, b, amount),
+                    "blend8_8bit({a},{b},{amount})"
+                );
+                assert_eq!(
+                    l::blend8_16bit(a, b, amount),
+                    fastled_ref::blend8_16bit(a, b, amount),
+                    "blend8_16bit({a},{b},{amount})"
+                );
+                assert_eq!(
+                    l::blend8_8bit_full_range(a, b, amount),
+                    fastled_ref::blend8_8bit_full_range(a, b, amount),
+                    "blend8_8bit_full_range({a},{b},{amount})"
+                );
+                assert_eq!(
+                    l::blend8(a, b, amount),
+                    fastled_ref::blend8(a, b, amount),
+                    "blend8({a},{b},{amount})"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn blend8_8bit_full_range_reaches_both_endpoints() {
+    // The property the name promises, and the one that distinguishes this
+    // variant from blend8_8bit: amount_of_b == 255 lands on b exactly.
+    for a in 0..=255u8 {
+        for b in 0..=255u8 {
+            assert_eq!(
+                l::blend8_8bit_full_range(a, b, 0),
+                a,
+                "full_range({a},{b},0) should be a"
+            );
+            assert_eq!(
+                l::blend8_8bit_full_range(a, b, 255),
+                b,
+                "full_range({a},{b},255) should be b"
+            );
+        }
+    }
+
+    // ...whereas the rounding variant tops out one short, which is exactly
+    // why both exist. Pinned so a future "cleanup" that collapses them
+    // fails loudly.
+    assert_eq!(l::blend8_8bit(0, 255, 255), 254);
+    assert_eq!(l::blend8_8bit_full_range(0, 255, 255), 255);
+}
+
+#[test]
 fn math8_signed_byte_pairs_exhaustive() {
     for i in i8::MIN..=i8::MAX {
         for j in i8::MIN..=i8::MAX {

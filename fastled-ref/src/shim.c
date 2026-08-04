@@ -127,6 +127,18 @@ u8 fl_blend8(u8 a, u8 b, u8 amountOfB) {
     return fl_blend8_16bit(a, b, amountOfB);
 }
 
+// FastLED's BLEND_FIXED + SCALE8_FIXED formula, taken from the 3.6.0 tag
+// (src/lib8tion/math8.h, BLEND8_C branch). Upstream later replaced this
+// with the 0x80-rounding variant above; both are kept because they
+// disagree — e.g. blend8(0, 255, 255) is 255 here and 254 there.
+u8 fl_blend8_8bit_full_range(u8 a, u8 b, u8 amountOfB) {
+    u16 partial;
+    partial = (u16)((a << 8) | b); // A*256 + B
+    partial = (u16)(partial + (u16)(b * amountOfB));
+    partial = (u16)(partial - (u16)(a * amountOfB));
+    return (u8)(partial >> 8);
+}
+
 u8 fl_mod8(u8 a, u8 m) {
     while (a >= m) a -= m;
     return a;

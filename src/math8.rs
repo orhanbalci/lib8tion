@@ -124,6 +124,30 @@ pub const fn blend8_8bit(a: u8, b: u8, amount_of_b: u8) -> u8 {
     (partial >> 8) as u8
 }
 
+/// Blend `a` towards `b` by `amount_of_b / 256`, with 8-bit precision and
+/// full range: `amount_of_b == 255` returns `b` *exactly*, mirroring
+/// [`scale8`](crate::scale8)'s fixed-point convention.
+///
+/// The difference from [`blend8_8bit`] is the bias term. Both compute
+/// `(a * 256 + (b - a) * amount_of_b + bias) >> 8`; [`blend8_8bit`] uses
+/// `bias = 0x80` to round to nearest, which tops out one short of `b`
+/// (`blend8_8bit(0, 255, 255) == 254`), while this uses `bias = b`, which
+/// lands the top of the range exactly (`255`) at the cost of a slight
+/// upward skew elsewhere.
+///
+/// This is FastLED's own `BLEND_FIXED + SCALE8_FIXED` formula, and was the
+/// behavior of its `blend8` through the 3.6.x line; upstream later switched
+/// the default to the rounding variant. Ported so that code targeting the
+/// earlier behavior can reproduce it bit-for-bit.
+#[inline(always)]
+pub const fn blend8_8bit_full_range(a: u8, b: u8, amount_of_b: u8) -> u8 {
+    // partial = a * 256 + b
+    let mut partial: u16 = ((a as u16) << 8) | b as u16;
+    partial = partial.wrapping_add(b as u16 * amount_of_b as u16);
+    partial = partial.wrapping_sub(a as u16 * amount_of_b as u16);
+    (partial >> 8) as u8
+}
+
 /// Blend `a` towards `b` by `amount_of_b / 256`, with 16-bit intermediate
 /// precision for a more accurate result than [`blend8_8bit`].
 #[inline(always)]
