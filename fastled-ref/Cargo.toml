@@ -2,8 +2,14 @@
 name = "fastled-ref"
 version = "0.1.0"
 edition = "2021"
-publish = false
+rust-version = "1.85"
+authors = ["Orhan Balci <orhanbalci@gmail.com>"]
 description = "FFI bindings to a C transcription of FastLED's portable lib8tion algorithms, used only for differential testing against the lib8tion crate's Rust port."
+repository = "https://github.com/orhanbalci/lib8tion"
+license = "MIT"
+# Test scaffolding, not a library anyone should depend on: it is a
+# `path` dev-dependency of `lib8tion` and must never reach crates.io.
+publish = false
 
 [dependencies]
 

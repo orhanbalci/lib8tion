@@ -1,13 +1,15 @@
 [package]
 name = "lib8tion"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.85"
 authors = ["Orhan Balci <orhanbalci@gmail.com>"]
 description = "Rust port of FastLED lib8tion — fast 8-bit math primitives for embedded LED programming"
-license = "MIT"
+documentation = "https://docs.rs/lib8tion"
+homepage = "https://github.com/orhanbalci/lib8tion"
 repository = "https://github.com/orhanbalci/lib8tion"
-keywords = ["led", "embedded", "no-std", "math"]
+license = "MIT"
+keywords = ["led", "embedded", "no-std", "math", "fastled"]
 categories = ["embedded", "no-std", "mathematics"]
 readme = "README.md"
 
@@ -16,3 +18,8 @@ readme = "README.md"
 [dev-dependencies]
 fastled-ref = { path = "fastled-ref" }
 proptest = "1.11.0"
+
+[package.metadata.docs.rs]
+# Surface the embedded targets on docs.rs, since `no_std` support is the
+# point of the crate.
+targets = ["thumbv7em-none-eabihf", "riscv32imc-unknown-none-elf"]
